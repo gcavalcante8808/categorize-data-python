@@ -1,7 +1,10 @@
 import unittest
 import requests
+import tablib
+
+
 from app import check_is_local_file, check_is_remote_file, \
-                user_agent, get_file_content
+                user_agent, get_file_content, parse_content
 
 
 class AppTestCase(unittest.TestCase):
@@ -11,6 +14,11 @@ class AppTestCase(unittest.TestCase):
                         'raw/b26d28f4c01a1ec7298020e88a200d292293ae4b/' \
                         'conteudojson'
 
+        self.csv_url = 'https://gist.githubusercontent.com/israelbgf/' \
+                       '782a92243d0ba1ff47f9aaf46358f870/' \
+                       'raw/86c7a2bf04242bd4262b203ca725ce1da69f035d/' \
+                       'conteudocsv'
+
         self.local_file = "test_file.txt"
         self.local_file_content = "Test String"
 
@@ -19,7 +27,10 @@ class AppTestCase(unittest.TestCase):
         local_file.close()
 
         headers = {'User-Agent': user_agent}
-        self.remote_content = requests.get(self.json_url, headers=headers)
+        self.json_remote_content = requests.get(self.json_url, 
+                                                headers=headers)
+        self.csv_remote_content = requests.get(self.csv_url,
+                                               headers=headers)
 
     def test_local_file(self):
         """
@@ -34,10 +45,10 @@ class AppTestCase(unittest.TestCase):
         # Check success workflow.
         content = check_is_remote_file(self.json_url)
 
-        self.assertEqual(200, self.remote_content.status_code, 
+        self.assertEqual(200, self.json_remote_content.status_code, 
                          "Request not successful.")
         self.assertTrue(content, "function could not get the given url.")
-        self.assertEqual(content, self.remote_content.text)
+        self.assertEqual(content, self.json_remote_content.text)
 
         # Check non URL workflow.
         content = check_is_remote_file("http://nonecxiste.com")
@@ -57,7 +68,7 @@ class AppTestCase(unittest.TestCase):
 
         # Now a remote file.
         content = get_file_content(self.json_url)
-        self.assertEqual(self.remote_content.text, content)
+        self.assertEqual(self.json_remote_content.text, content)
 
         # Now with a invalid local file
         
@@ -68,14 +79,17 @@ class AppTestCase(unittest.TestCase):
         with self.assertRaises(Exception):
             content = get_file_content("http://gitlab.ts3corp.com.br/invalid")
 
-    def test_csv_type_hinting(self):
-        self.fail("TODO")
+    def test_content_guessing(self):
+        # JSON content
+        jparsed = parse_content(self.json_remote_content.text)
+        self.assertIsInstance(jparsed, tablib.Dataset)
+        #CSV Content
+        cparsed = parse_content(self.csv_remote_content.text)
+        self.assertIsInstance(cparsed, tablib.Dataset)
 
-    def test_json_type_hinting(self):
-        self.fail("TODO")
-
-    # def test_data_categorization(self):
-    #     self.fail("TODO")
+        #Invalid Format
+        with self.assertRaises(tablib.core.UnsupportedFormat):
+            parse_content('Unsupported Format')
 
 if __name__ == '__main__':
     unittest.main()

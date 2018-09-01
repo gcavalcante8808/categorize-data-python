@@ -7,6 +7,7 @@ As requested  by the company:
 """
 import os
 import requests
+import tablib
 import validators
 
 
@@ -19,7 +20,7 @@ def check_is_local_file(input_file: str) -> str:
     Check if the passed para is a valid file.
     """
     if os.path.isfile(input_file):
-        with open(input_file, 'r') as localfile:
+        with open(input_file, 'r', newline='') as localfile:
             content = localfile.read()
             return content
 
@@ -60,3 +61,14 @@ def get_file_content(input_file: str) -> str:
     content = [value for value in [islocal, isremote] if value]
 
     return content[0]
+
+def parse_content(input_data: str) -> tablib.Dataset:
+    """
+    Parse content with 
+    """
+    try:
+        dataset = tablib.Dataset().load(input_data)
+    except  (tablib.core.UnsupportedFormat,):
+        raise 
+
+    return dataset
