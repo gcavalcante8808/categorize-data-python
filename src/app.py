@@ -5,10 +5,15 @@ As requested  by the company:
  * Categorize to know if the input file is a json or a csv;
  * Sort locations by the number of the clients on it.
 """
+import argparse
 import os
 import requests
+import sys
 import tablib
 import validators
+
+from collections import Counter
+from tabulate import tabulate
 
 
 #Avoid 403 on pages that check user agents.
@@ -64,7 +69,7 @@ def get_file_content(input_file: str) -> str:
 
 def parse_content(input_data: str) -> tablib.Dataset:
     """
-    Parse content with 
+    Parse content with tablib.
     """
     try:
         dataset = tablib.Dataset().load(input_data)
@@ -72,3 +77,44 @@ def parse_content(input_data: str) -> tablib.Dataset:
         raise 
 
     return dataset
+
+def summarize_data(input_data: tablib.Dataset,
+                   main_key: str = 'estado') -> Counter:
+    """
+    Create a summary for data using collections.Counter.
+    """
+    summary = Counter(value[main_key] for value in input_data.dict)
+    return summary
+
+def show_data(data: Counter) -> None:
+    """
+    Tabulate Data as Requested.
+    """
+    print(tabulate(sorted(data.items()), 
+                   headers=["Estado","Quant. Clientes"]))
+
+def parse_args(args: str) -> argparse.Namespace:
+    """
+    Parse args and show help if needed.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('filename', type=str)
+    
+    args = parser.parse_args()
+
+    return args
+
+if __name__ == '__main__':
+    parsed_args = parse_args(sys.argv[1])
+
+    # Get file contents.
+    content = get_file_content(parsed_args.filename)
+
+    # Transform into dataset.
+    dataset = parse_content(content)
+
+    # Created the request summary.
+    summary = summarize_data(dataset)
+
+    # Show tabulated Data as requested.
+    show_data(summary)

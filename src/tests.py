@@ -1,10 +1,16 @@
+import argparse
 import unittest
 import requests
+import subprocess
+import os
 import tablib
 
+from collections import Counter
+from tabulate import tabulate
+from unittest.mock import patch, call
 
-from app import check_is_local_file, check_is_remote_file, \
-                user_agent, get_file_content, parse_content
+
+import app
 
 
 class AppTestCase(unittest.TestCase):
@@ -26,7 +32,7 @@ class AppTestCase(unittest.TestCase):
         local_file.write(self.local_file_content)
         local_file.close()
 
-        headers = {'User-Agent': user_agent}
+        headers = {'User-Agent': app.user_agent}
         self.json_remote_content = requests.get(self.json_url, 
                                                 headers=headers)
         self.csv_remote_content = requests.get(self.csv_url,
@@ -35,7 +41,7 @@ class AppTestCase(unittest.TestCase):
     def test_local_file(self):
         """
         """
-        content = check_is_local_file("test_file.txt")
+        content = app.check_is_local_file("test_file.txt")
         self.assertTrue(content)
     #     self.assertEqual(content, "Test String")
 
@@ -43,7 +49,7 @@ class AppTestCase(unittest.TestCase):
         """
         """
         # Check success workflow.
-        content = check_is_remote_file(self.json_url)
+        content = app.check_is_remote_file(self.json_url)
 
         self.assertEqual(200, self.json_remote_content.status_code, 
                          "Request not successful.")
@@ -51,11 +57,11 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(content, self.json_remote_content.text)
 
         # Check non URL workflow.
-        content = check_is_remote_file("http://nonecxiste.com")
+        content = app.check_is_remote_file("http://nonecxiste.com")
         self.assertFalse(content)
 
         # Check non URI workflow
-        content = check_is_remote_file("http://gitlab.ts3corp.com.br/invuri")
+        content = app.check_is_remote_file("http://gitlab.ts3corp.com.br/invuri")
         self.assertFalse(content)
 
 
@@ -63,33 +69,52 @@ class AppTestCase(unittest.TestCase):
         """
         """
         # First with local file.
-        content = get_file_content(self.local_file)
+        content = app.get_file_content(self.local_file)
         self.assertEqual(content, self.local_file_content)
 
         # Now a remote file.
-        content = get_file_content(self.json_url)
+        content = app.get_file_content(self.json_url)
         self.assertEqual(self.json_remote_content.text, content)
 
         # Now with a invalid local file
         
         with self.assertRaises(Exception):
-            content = get_file_content("/tmp/invalid.txt")
+            content = app.get_file_content("/tmp/invalid.txt")
 
         # Now with a invalid remote file
         with self.assertRaises(Exception):
-            content = get_file_content("http://gitlab.ts3corp.com.br/invalid")
+            content = app.get_file_content("http://gitlab.ts3corp.com.br/invalid")
 
     def test_content_guessing(self):
         # JSON content
-        jparsed = parse_content(self.json_remote_content.text)
+        jparsed = app.parse_content(self.json_remote_content.text)
         self.assertIsInstance(jparsed, tablib.Dataset)
         #CSV Content
-        cparsed = parse_content(self.csv_remote_content.text)
+        cparsed = app.parse_content(self.csv_remote_content.text)
         self.assertIsInstance(cparsed, tablib.Dataset)
 
         #Invalid Format
         with self.assertRaises(tablib.core.UnsupportedFormat):
-            parse_content('Unsupported Format')
+            app.parse_content('Unsupported Format')
+
+    def test_categorize_data(self):
+        """
+        Now to finish the job.
+        """
+        parsed = app.parse_content(self.json_remote_content.text)
+        categorized = app.summarize_data(parsed)
+        self.assertIsInstance(categorized, Counter)
+
+    def test_show_data(self):
+        """
+        Verify showed data.
+        """
+        parsed = app.parse_content(self.json_remote_content.text)
+        categorized = app.summarize_data(parsed)
+
+        with patch('app.show_data') as test_function:
+            app.show_data(categorized)
+            test_function.assert_called_once()
 
 if __name__ == '__main__':
     unittest.main()
